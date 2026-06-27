@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IDP Pipeline Tester</title>
+    <style>
+        body { font-family: sans-serif; max-width: 650px; margin: 40px auto; padding: 20px; line-height: 1.6; color: #333; }
+        .stage { padding: 12px; margin: 12px 0; border: 1px solid #ccc; border-radius: 6px; background: #f9f9f9; transition: all 0.3s ease; }
+        .pending { border-color: #ddd; color: #888; }
+        .processing { border-color: #3498db; background: #ebf5fb; font-weight: bold; color: #2980b9; }
+        .completed { border-color: #2ecc71; background: #eafaf1; color: #27ae60; }
+        .failed { border-color: #e74c3c; background: #fdedec; color: #c0392b; }
+        button { padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #2980b9; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 6px; overflow-x: auto; max-height: 250px; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+    <h2>Intelligent Document Processing Platform</h2>
+    <p>Upload documents to a shared project workspace to scan for details and contradictions.</p>
+    
+    <label><b>Project ID Workspace:</b></label><br>
+    <input type="text" id="projectIdInput" value="default-project-1" style="padding: 6px; width: 200px;" /><br><br>
+
+    <input type="file" id="fileInput" /><br><br>
+    <button onclick="startPipeline()">Upload & Run Pipeline</button>
+
+    <h3>Live Pipeline Steps</h3>
+    <div id="stage0" class="stage pending">Stage 0: Document Ingestion (Waiting)</div>
+    <div id="stage1" class="stage pending">Stage 1: Document Classification (Waiting)</div>
+    <div id="stage2" class="stage pending">Stage 2: Entity & Clause Extraction (Waiting)</div>
+    <div id="stage3" class="stage pending">Stage 3: Anomaly Detection (Waiting)</div>
+    <div id="stage4" class="stage pending">Stage 4: Risk Scoring Matrix (Waiting)</div>
+    <div id="stage5" class="stage pending">Stage 5: Cross-Document Contradiction Check (Waiting)</div>
+    <div id="crmSyncBox" class="stage pending">CRM Database Cloud Sync Status (Waiting)</div>
+
+    <h4>Real-Time WebSocket Stream Log</h4>
+    <pre id="outputLog">Logs will print here sequentially...</pre>
+
+    <script>
+        async function startPipeline() {
+            const fileInput = document.getElementById('fileInput');
+            const projectId = document.getElementById('projectIdInput').value;
+            if (!fileInput.files[0]) {
+                alert("Please pick a document file first!");
+                return;
+            }
+
+            document.getElementById('outputLog').textContent = "Initializing components...";
+            updateStage('stage0', 'pending', 'Stage 0: Document Ingestion (Waiting)');
+            updateStage('stage1', 'pending', 'Stage 1: Document Classification (Waiting)');
+            updateStage('stage2', 'pending', 'Stage 2: Entity & Clause Extraction (Waiting)');
+            updateStage('stage3', 'pending', 'Stage 3: Anomaly Detection (Waiting)');
+            updateStage('stage4', 'pending', 'Stage 4: Risk Scoring Matrix (Waiting)');
+            updateStage('stage5', 'pending', 'Stage 5: Cross-Document Contradiction Check (Waiting)');
+            updateStage('crmSyncBox', 'pending', 'CRM Database Cloud Sync Status (Waiting)');
+
+            updateStage('stage0', 'processing', 'Stage 0: Document Ingestion (Processing...)');
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            try {
+                const response = await fetch(`/api/v1/upload?project_id=${projectId}`, { method: 'POST', body: formData });
+                const initData = await response.json();
+                const docId = initData.document_id;
+                
+                logText(`File saved. Tracking ID: ${docId} inside Project: ${projectId}`);
+
+                const ws = new WebSocket(`ws://${window.location.host}/ws/pipeline/${docId}?project_id=${projectId}`);
+
+                ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    logText(`Received Frame -> Stage ${msg.stage} (${msg.status})`);
+                    logText(JSON.stringify(msg.data, null, 2));
+
+                    if (msg.stage === 0) {
+                        if (msg.status === 'processing') updateStage('stage0', 'processing', 'Stage 0: Ingesting layout and scanning texts...');
+                        if (msg.status === 'completed') updateStage('stage0', 'completed', `Stage 0 Complete! ✔ Format: ${msg.data.extraction_type}`);
+                    }
+                    if (msg.stage === 1) {
+                        if (msg.status === 'processing') updateStage('stage1', 'processing', 'Stage 1: Running machine learning layout classifier...');
+                        if (msg.status === 'completed') updateStage('stage1', 'completed', `Stage 1 Complete! ✔ Type: ${msg.data.document_type.toUpperCase()}`);
+                    }
+                    if (msg.stage === 2) {
+                        if (msg.status === 'processing') updateStage('stage2', 'processing', 'Stage 2: Parsing regex patterns for clause metrics...');
+                        if (msg.status === 'completed') updateStage('stage2', 'completed', `Stage 2 Complete! ✔ Extracted Fields Saved.`);
+                    }
+                    if (msg.stage === 3) {
+                        if (msg.status === 'processing') updateStage('stage3', 'processing', 'Stage 3: Auditing data compliance anomalies...');
+                        if (msg.status === 'completed') updateStage('stage3', 'completed', `Stage 3 Complete! ✔ Compliance Complete.`);
+                    }
+                    if (msg.stage === 4) {
+                        if (msg.status === 'processing') updateStage('stage4', 'processing', 'Stage 4: Quantifying risk profiles...');
+                        if (msg.status === 'completed') updateStage('stage4', 'completed', `Stage 4 Complete! ✔ Risk Score: ${msg.data.risk_score}/100`);
+                    }
+                    if (msg.stage === 5) {
+                        if (msg.status === 'processing') updateStage('stage5', 'processing', 'Stage 5: Cross-referencing files in project space...');
+                        if (msg.status === 'completed') updateStage('stage5', 'completed', `Stage 5 Complete! ✔ Cross Contradictions Found: ${msg.data.contradictions_found}`);
+                    }
+                    if (msg.stage === 6) {
+                        if (msg.status === 'processing') updateStage('crmSyncBox', 'processing', 'Stage 6: Pushing data to CRM Cloud registry...');
+                        if (msg.status === 'completed') {
+                            updateStage('crmSyncBox', 'completed', `CRM Sync Complete! ✔ Action: ${msg.data.action} | Hash: ${msg.data.content_hash.substring(0, 10)}...`);
+                        }
+                    }
+                };
+
+                ws.onerror = (err) => logText(`Stream Channel Error: ${err}`);
+                ws.onclose = () => logText("Stream Channel successfully closed.");
+
+            } catch (err) {
+                logText(`Pipeline System Error: ${err.message}`);
+            }
+        }
+
+        function updateStage(elementId, statusClass, text) {
+            const el = document.getElementById(elementId);
+            el.className = `stage ${statusClass}`;
+            el.textContent = text;
+        }
+
+        function logText(text) {
+            document.getElementById('outputLog').textContent += "\n" + text;
+        }
+    </script>
+</body>
+</html>

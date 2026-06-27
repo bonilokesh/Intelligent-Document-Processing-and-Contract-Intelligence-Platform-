@@ -1,0 +1,5 @@
+venv/
+__pycache__/
+.pytest_cache/
+temp_uploads/
+app/resources/classifier_model.pkl
