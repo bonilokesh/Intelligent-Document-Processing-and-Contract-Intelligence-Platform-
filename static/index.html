@@ -67,8 +67,11 @@
                 const docId = initData.document_id;
                 
                 logText(`File saved. Tracking ID: ${docId} inside Project: ${projectId}`);
+                logText(`Connecting to WebSocket stream channel...`);
 
-                const ws = new WebSocket(`ws://${window.location.host}/ws/pipeline/${docId}?project_id=${projectId}`);
+                // Dynamic protocol switching configuration logic
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/pipeline/${docId}?project_id=${projectId}`);
 
                 ws.onmessage = (event) => {
                     const msg = JSON.parse(event.data);
